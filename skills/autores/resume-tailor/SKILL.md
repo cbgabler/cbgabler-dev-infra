@@ -1,11 +1,11 @@
 ---
 name: autores-resume-tailor
-description: Tailor Carson's LaTeX resume to a specific job posting using the autores pipeline (fact bank → claude selection → LaTeX compile → verification gates). Use when asked to tailor a resume, add a job URL and produce a resume for it, debug a failed tailoring, or edit the fact bank / resume template in the resume-tailor repo.
+description: Tailor Carson's LaTeX resume to a specific job posting using the autores pipeline (fact bank → claude selection → LaTeX compile → verification gates), always filling one full page and leaning into the role rather than shrinking on a weak match. Use when asked to tailor a resume, when a tailored resume comes out short, add a job URL and produce a resume for it, debug a failed tailoring, or edit the fact bank / resume template in the resume-tailor repo.
 ---
 
 # autores: resume tailoring
 
-The repo is `~/resume-tailor` (package name `autores`, private). Tailoring is Stage 4 of the pipeline:
+The repo is `~/resume-tailor` on the Mac, `~/Projects/autores` on Windows (package name `autores`, private). Tailoring is Stage 4 of the pipeline:
 ingest → filter → enrich → **tailor** → notify → apply.
 
 ## The honesty boundary (never break this)
@@ -17,6 +17,27 @@ ingest → filter → enrich → **tailor** → notify → apply.
 - If a posting seems to need a claim the fact bank doesn't hold, **ask Carson**. Don't add it yourself.
   Only add a new fact when Carson supplies it, and mark it `verified: true` only when he confirms the figure.
 
+## Fill the page, lean into the role (never shrink it)
+
+A weak match, or a thin or missing job description, is **never** a reason to ship a shorter resume.
+The fix is to lean harder into the role, not to leave bullets off.
+
+- **Every job's bullets always go on.** Leaving an employer off to save space isn't allowed.
+  `missingEmployers` in `src/tailor/plan.ts` checks the final text for this.
+- **Every shippable project bullet goes on too.** `bulletsForResume` puts the model's ranked picks first,
+  then backfills the rest of the projects in fact-bank order. The model's job is *ranking*, not gatekeeping.
+- **One page is enforced by trimming, not by picking less.** The fit loop in `buildResume` drops the
+  last project bullet first. Once projects run out, it drops job bullets through `nextJobBulletToDrop`,
+  always leaving each job at least one.
+- **The prompt (`buildPrompt` in `claude.ts`) asks for every project bullet, ranked.** On a sparse JD it
+  tells the model to infer what the role does day to day, rank the bullets that show that work first,
+  and rephrase them in that role's vocabulary. The honesty rules above still hold.
+
+If a tailored resume comes out short, treat it as a bug in selection or fitting. Don't accept it as a
+judgment about the match. `rebuildResume` re-renders under current rules from the saved
+`claude-raw.json` without a new Claude call. It keeps the old ranking, so re-tailor when the
+role-focused rewording matters.
+
 ## Key files
 
 | File | Role |
@@ -24,6 +45,7 @@ ingest → filter → enrich → **tailor** → notify → apply.
 | `Resume/master-facts.yaml` | Fact bank (source of truth) |
 | `Resume/base.tex` | Template. The default render must reproduce `Resume/Carson_Gabler_Resume.tex` exactly (a regression test checks it). |
 | `src/tailor/tailor.ts` | Orchestrates one job: facts → claude → render → compile → verify |
+| `src/tailor/plan.ts` | Which bullets go on: all jobs, then ranked + backfilled projects; trim order |
 | `src/tailor/claude.ts` | Selection call (`claude -p` CLI backend, or the API when `AUTORES_CLAUDE_BACKEND=api`) |
 | `src/tailor/verify.ts` | Gates: selection is shippable, no invented numbers, one page, no placeholders |
 | `src/tailor/latex.ts` | Rendering and escaping. A bare `\|` in text mode must become `\textbar{}`. |

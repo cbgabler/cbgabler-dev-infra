@@ -15,7 +15,14 @@ for skill_md in "$repo"/skills/*/*/SKILL.md; do
     echo "skip  $name (a real directory already exists at $link)" >&2
     continue
   fi
-  ln -sfn "$dir" "$link"
+  case "$(uname -s)" in
+    # Windows refuses symlinks without Developer Mode; a directory junction
+    # needs no privilege and git pull still updates through it.
+    MINGW*|MSYS*|CYGWIN*)
+      [ -L "$link" ] && rm "$link"
+      cmd //c mklink //J "$(cygpath -w "$link")" "$(cygpath -w "$dir")" > /dev/null ;;
+    *) ln -sfn "$dir" "$link" ;;
+  esac
   echo "link  $name -> ${dir#$repo/}"
 done
 
